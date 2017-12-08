@@ -1,0 +1,17 @@
+{
+  "name": "counter",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app"
+  },
+  "keywords": [],
+  "dependencies": {
+    "lotion": "git+https://git@github.com/keppel/lotion.git#judd/light-client-connect",
+    "shea": "0.0.2"
+  },
+  "author": "",
+  "license": "ISC"
+}

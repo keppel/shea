@@ -1,0 +1,26 @@
+{
+  "name": "shea",
+  "version": "0.0.6",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "shea": "bin/shea"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.17.1",
+    "body-parser": "^1.18.2",
+    "chrome-launch": "^1.1.4",
+    "express-http-proxy": "^1.1.0",
+    "get-port": "^3.2.0",
+    "lotion": "git+https://git@github.com/keppel/lotion.git#judd/light-client-connect",
+    "opn": "^5.1.0",
+    "public-ip": "^2.3.5",
+    "yargs": "^10.0.3"
+  }
+}
