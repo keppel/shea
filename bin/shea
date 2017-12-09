@@ -36,39 +36,83 @@ let proxy = require('express-http-proxy')
 let { json } = require('body-parser')
 let opn = require('opn')
 
-let GCI = argv._[0]
+let GCI = argv._[0] || ''
 
 let lotion = require('lotion')
+let clients = {}
+
+function connectByGCI(gci) {
+  return new Promise(async (resolve, reject) => {
+    if (!clients[gci]) {
+      clients[gci] = lotion.connect(gci)
+    }
+    resolve(await clients[gci])
+  })
+}
+
+async function getClientCode(client) {
+  let state = await client.getState()
+  if(typeof state !== 'object' || !state._sheaClientCode){
+    return 'no app found'
+  } else {
+    return state._sheaClientCode
+  }
+}
+
+function parseGCIFromHeaders(headers) {
+   let referer = headers.referer
+    if(!referer) {
+      return false
+    }
+    let gci = referer.split('/')[referer.split('/').length - 1]
+    if(typeof gci !== 'string' || !gci.length) {
+      return false
+    }
+    return gci
+}
 
 async function main() {
-  let expressPort = await getPort()
+  let expressPort = process.env.PORT || await getPort(7777)
   let expressApp = express()
 
-  let { getState, send } = await lotion.connect(GCI)
-
-  let state = await getState()
-
-  if (typeof state !== 'object' || !state._sheaClientCode) {
-    return console.log('no shea client app found at address ' + GCI)
-  }
-
-  let clientCode = state._sheaClientCode
   expressApp.use(json())
-  expressApp.get('/', (req, res) => {
-    res.send(clientCode)
+
+  expressApp.get('/', async (req, res) => {
+    res.send('You are now connected to a Shea gateway. Make sure this gateway is operated by you or someone you trust.')
   })
+
   expressApp.get('/state', async (req, res) => {
-    let state = await getState()
-    res.json(state)
+    let gci = parseGCIFromHeaders(req.headers) 
+    if(!gci) {
+      return res.sendStatus(400)
+    }
+    let client = await connectByGCI(gci)
+    res.json(await client.getState())
   })
   expressApp.post('/txs', async (req, res) => {
-    let result = await send(req.body)
-    res.json(result)
+    let gci = parseGCIFromHeaders(req.headers) 
+    if(!gci) {
+      return res.sendStatus(400)
+    }
+    let client = await connectByGCI(gci)
+    res.json(await client.send(req.body))
+  })
+  expressApp.get('/:gci', async (req, res) => {
+    let client = await connectByGCI(req.params.gci)
+    let clientCode = await getClientCode(client)
+    res.send(clientCode)
+  })
+  expressApp.get('/:gci/state', async (req, res) => {
+    let client = await connectByGCI(req.params.gci)
+    res.json(await client.getState())
+  })
+  expressApp.post('/:gci/txs', async (req, res) => {
+    let client = await connectByGCI(req.params.gci)
+    res.json(await client.send(req.body))
   })
 
   expressApp.listen(expressPort)
-  console.log('http://localhost:' + expressPort)
-  opn('http://localhost:' + expressPort)
+  opn('http://localhost:' + expressPort + '/' + GCI)
 }
 
 main()
