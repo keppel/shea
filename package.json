@@ -18,7 +18,7 @@
     "chrome-launch": "^1.1.4",
     "express-http-proxy": "^1.1.0",
     "get-port": "^3.2.0",
-    "lotion": "^0.1.6",
+    "lotion": "^0.1.8",
     "opn": "^5.1.0",
     "public-ip": "^2.3.5",
     "yargs": "^10.0.3"
