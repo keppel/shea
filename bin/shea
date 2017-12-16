@@ -37,6 +37,7 @@ let { json } = require('body-parser')
 let opn = require('opn')
 
 let GCI = argv._[0] || ''
+let gatewayMode = argv.g || false
 
 let lotion = require('lotion')
 let clients = {}
@@ -112,7 +113,9 @@ async function main() {
   })
 
   expressApp.listen(expressPort)
-  opn('http://localhost:' + expressPort + '/' + GCI)
+  if(!gatewayMode) {
+    opn('http://localhost:' + expressPort + '/' + GCI)
+  }
 }
 
 main()
