@@ -48,7 +48,7 @@ let tar = require('tar')
 let GCI = argv._[0] || ''
 let gatewayMode = argv.g || false
 
-let { connect } = require('../../lotion') // fix this path
+let { connect } = require('lotion')
 let clients = {}
 const SHEA_HOME = join(os.homedir(), '/.shea')
 
