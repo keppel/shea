@@ -1,6 +1,6 @@
-let shea = require('shea')
+let static = require('../../index.js')
 
-let app = require('../../../lotion')({
+let app = require('lotion')({
   initialState: { messages: [] },
   devMode: true
 })
@@ -11,6 +11,6 @@ app.use((state, tx) => {
   }
 })
 
-app.use(shea('client.html'))
+app.use(static('public'))
 
 app.listen(3000)

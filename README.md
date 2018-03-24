@@ -14,7 +14,7 @@ $ npm install shea
 
 1. Write up some html to use as your Lotion app's client.
 
-`client.html`:
+`public/client.html`:
 ```html
 <html>
 <head>
@@ -43,7 +43,7 @@ let shea = require('shea')
 
 let app = lotion({ initialState: {} })
 
-app.use(shea('./client.html'))
+app.use(shea('public/'))
 
 app.listen(3000).then(appInfo => {
   console.log(appInfo.GCI)
