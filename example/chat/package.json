@@ -1,5 +1,5 @@
 {
-  "name": "counter",
+  "name": "shea-chat",
   "version": "1.0.0",
   "description": "",
   "main": "app.js",
@@ -9,8 +9,8 @@
   },
   "keywords": [],
   "dependencies": {
-    "lotion": "git+https://git@github.com/keppel/lotion.git#judd/light-client-connect",
-    "shea": "0.0.2"
+    "lotion": "^0.1.16",
+    "tar": "^4.4.0"
   },
   "author": "",
   "license": "ISC"
