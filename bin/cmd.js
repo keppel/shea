@@ -71,7 +71,7 @@ function getClientByHash(hash) {
       let socket = net.connect(peer.port, peer.host)
       let bytes = Buffer.alloc(0)
       socket.on('data', chunk => {
-        bytes += chunk
+        bytes = Buffer.concat([bytes, chunk])
       })
       socket.on('end', function() {
         // check that content hashes to the expected value
@@ -147,7 +147,6 @@ async function main() {
   expressApp.use('/:gci', async (req, res, next) => {
     let GCI = req.params.gci
     try {
-      console.log('fetching client hash..')
       let clientHash = await queryByGCI(GCI, '_sheaClientHash')
 
       // check if we already have this client bundle
