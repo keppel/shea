@@ -54,16 +54,15 @@ const SHEA_HOME = join(os.homedir(), '/.shea')
 
 function parseGCIFromHeaders(headers) {
   let referer = headers.referer
-  if(!referer) {
-    return false 
+  if (!referer) {
+    return false
   }
   let gci = referer.split('/')[3]
-  if(typeof gci !== 'string' || !gci.length) {
+  if (typeof gci !== 'string' || !gci.length) {
     return false
   }
   return gci
 }
-
 
 function getClientByHash(hash) {
   return new Promise((resolve, reject) => {
@@ -74,12 +73,12 @@ function getClientByHash(hash) {
       socket.on('data', chunk => {
         bytes += chunk
       })
-      socket.on('end', function () {
+      socket.on('end', function() {
         // check that content hashes to the expected value
         let candidateHash = createHash('sha256').update(bytes).digest('hex')
-        if(candidateHash === hash) {
+        if (candidateHash === hash) {
           resolve(bytes)
-          dc.destroy(function () {})
+          dc.destroy(function() {})
         }
       })
       socket.on('error', e => {
@@ -92,65 +91,68 @@ function getClientByHash(hash) {
 }
 
 async function main() {
-  let expressPort = process.env.PORT || await getPort(7777)
+  let expressPort = process.env.PORT || (await getPort(7777))
   let expressApp = express()
 
   expressApp.use(json())
 
   expressApp.get('/', async (req, res) => {
-    res.send('You are now connected to a Shea gateway. Make sure this gateway is operated by you or someone you trust.')
+    res.send(
+      'You are now connected to a Shea gateway. Make sure this gateway is operated by you or someone you trust.'
+    )
   })
 
-  expressApp.get('/state', async (req, res) => {
-    let gci = parseGCIFromHeaders(req.headers) 
+  expressApp.get('/state', async (req, res, next) => {
+    let gci = parseGCIFromHeaders(req.headers)
     let path = req.query.path || ''
     try {
-      let state = await queryByGCI(gci, path) 
+      let state = await queryByGCI(gci, path)
       res.json(state)
-    } catch(e) {
-      res.status(400).send(e)
+    } catch (e) {
+      return next(e)
     }
   })
-  expressApp.post('/txs', async (req, res) => {
-    let GCI = parseGCIFromHeaders(req.headers) 
-    if(!GCI) {
+  expressApp.post('/txs', async (req, res, next) => {
+    let GCI = parseGCIFromHeaders(req.headers)
+    if (!GCI) {
       return res.sendStatus(400)
     }
     try {
       res.json(await sendTxByGCI(GCI, req.body))
-    } catch(e) {
-      res.status(400).send(e)
-    }
-  })
-  
-  expressApp.get('/:gci/state', async (req, res) => {
-    let path = req.query.path || ''
-    let gci = req.params.gci
-    try {
-      let state = await queryByGCI(gci, path) 
-      res.json(state)
-    } catch(e) {
-      res.status(400).send(e)
+    } catch (e) {
+      return next(e)
     }
   })
 
-  expressApp.post('/:gci/txs', async (req, res) => {
+  expressApp.get('/:gci/state', async (req, res, next) => {
+    let path = req.query.path || ''
+    let gci = req.params.gci
+    try {
+      let state = await queryByGCI(gci, path)
+      res.json(state)
+    } catch (e) {
+      return next(e)
+    }
+  })
+
+  expressApp.post('/:gci/txs', async (req, res, next) => {
     let GCI = req.params.gci
     try {
       res.json(await sendTxByGCI(GCI, req.body))
-    } catch(e) {
-      res.status(400).send(e)
+    } catch (e) {
+      return next(e)
     }
   })
 
   expressApp.use('/:gci', async (req, res, next) => {
     let GCI = req.params.gci
     try {
+      console.log('fetching client hash..')
       let clientHash = await queryByGCI(GCI, '_sheaClientHash')
 
       // check if we already have this client bundle
       let path = join(SHEA_HOME, 'clients', GCI)
-      if(await fs.exists(path)) {
+      if (await fs.exists(path)) {
         return next()
       }
 
@@ -160,41 +162,40 @@ async function main() {
       // unpack client archive
       mkdirp.sync(path)
 
-      await tar.extract({ cwd: path, strip: 1, file: tmpPath})
+      await tar.extract({ cwd: path, strip: 1, file: tmpPath })
       await fs.remove(tmpPath)
 
       next()
-    } catch(e) {
-      res.status(400).send(e)
+    } catch (e) {
+      return next(e)
     }
   })
 
   expressApp.use(express.static(join(SHEA_HOME, 'clients')))
 
   expressApp.listen(expressPort)
-  if(!gatewayMode) {
+  if (!gatewayMode) {
     opn('http://localhost:' + expressPort + '/' + GCI)
   }
 
   async function queryByGCI(GCI, path) {
-    if(!clients[GCI]) {
+    if (!clients[GCI]) {
       clients[GCI] = await connect(GCI)
-      clients[GCI].bus.on('error', ()=> {
+      clients[GCI].bus.on('error', () => {
         delete clients[GCI]
       })
     }
     return await clients[GCI].getState(path)
   }
   async function sendTxByGCI(GCI, tx) {
-    if(!clients[GCI]) {
+    if (!clients[GCI]) {
       clients[GCI] = await connect(GCI)
-      clients[GCI].bus.on('error', ()=> {
+      clients[GCI].bus.on('error', () => {
         delete clients[GCI]
       })
     }
     return await clients[GCI].send(tx)
   }
-
 }
 
 main()
