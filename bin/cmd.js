@@ -38,8 +38,7 @@ let { json } = require('body-parser')
 let { join } = require('path')
 let opn = require('opn')
 let fs = require('fs-extra')
-let discoveryChannel = require('discovery-channel')
-let defaults = require('dat-swarm-defaults')()
+let jpfs = require('jpfs')
 let os = require('os')
 let mkdirp = require('mkdirp')
 let { createHash, randomBytes } = require('crypto')
@@ -48,7 +47,7 @@ let tar = require('tar')
 let GCI = argv._[0] || ''
 let gatewayMode = argv.g || false
 
-let { connect } = require('lotion')
+let connect = require('lotion-connect')
 let clients = {}
 const SHEA_HOME = join(os.homedir(), '/.shea')
 
@@ -64,41 +63,33 @@ function parseGCIFromHeaders(headers) {
   return gci
 }
 
-function getClientByHash(hash) {
-  return new Promise((resolve, reject) => {
-    let dc = discoveryChannel(defaults)
-    dc.on('peer', (id, peer) => {
-      let socket = net.connect(peer.port, peer.host)
-      let bytes = Buffer.alloc(0)
-      socket.on('data', chunk => {
-        bytes = Buffer.concat([bytes, chunk])
-      })
-      socket.on('end', function() {
-        // check that content hashes to the expected value
-        let candidateHash = createHash('sha256').update(bytes).digest('hex')
-        if (candidateHash === hash) {
-          resolve(bytes)
-          dc.destroy(function() {})
-        }
-      })
-      socket.on('error', e => {
-        socket.destroy()
-      })
-    })
-
-    dc.join(hash)
-  })
-}
-
 async function main() {
   let expressPort = process.env.PORT || (await getPort(7777))
   let expressApp = express()
 
   expressApp.use(json())
+  expressApp.use(function(req, res, next) {
+    /**
+     * handle web+shea links
+     */
+    const lotionWebPrefix = '/web%2Blotion%3A%2F%2'
+    let isLotionWeb = req.url.indexOf(lotionWebPrefix) === 0
+    if (isLotionWeb) {
+      let newUrl =
+        '/' + decodeURIComponent(req.url.slice(lotionWebPrefix.length + 1))
+      res.redirect(newUrl)
+    } else {
+      next()
+    }
+  })
 
   expressApp.get('/', async (req, res) => {
     res.send(
-      'You are now connected to a Shea gateway. Make sure this gateway is operated by you or someone you trust.'
+      `You are now connected to a Lotion Web gateway. Make sure this gateway is operated by you or someone you trust.
+      <script>
+        navigator.registerProtocolHandler('web+lotion', location.origin + '/%s', location.hostname)
+      </script>
+      `
     )
   })
 
@@ -155,7 +146,7 @@ async function main() {
         return next()
       }
 
-      let clientArchive = await getClientByHash(clientHash)
+      let clientArchive = await jpfs.get(clientHash)
       let tmpPath = join(os.tmpdir(), randomBytes(16).toString('hex'))
       fs.writeFileSync(tmpPath, clientArchive)
       // unpack client archive
@@ -180,18 +171,12 @@ async function main() {
   async function queryByGCI(GCI, path) {
     if (!clients[GCI]) {
       clients[GCI] = await connect(GCI)
-      clients[GCI].bus.on('error', () => {
-        delete clients[GCI]
-      })
     }
     return await clients[GCI].getState(path)
   }
   async function sendTxByGCI(GCI, tx) {
     if (!clients[GCI]) {
       clients[GCI] = await connect(GCI)
-      clients[GCI].bus.on('error', () => {
-        delete clients[GCI]
-      })
     }
     return await clients[GCI].send(tx)
   }

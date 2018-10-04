@@ -3,8 +3,7 @@ let { createHash, randomBytes } = require('crypto')
 let { join } = require('path')
 let os = require('os')
 let tar = require('tar')
-let discoveryServer = require('discovery-server')
-let defaults = require('dat-swarm-defaults')({ utp: false })
+let jpfs = require('jpfs')
 
 module.exports = function(clientPath) {
   return [
@@ -12,11 +11,10 @@ module.exports = function(clientPath) {
       type: 'initializer',
       middleware: function(state) {
         let tmpPath = join(os.tmpdir(), randomBytes(16).toString('hex'))
-        tar.create({ sync: true, file: tmpPath, portable: true }, [ clientPath ])
+        tar.create({ sync: true, file: tmpPath, portable: true }, [clientPath])
         let archiveBytes = fs.readFileSync(tmpPath)
-        let clientHash = createHash('sha256').update(archiveBytes).digest('hex')
-        state._sheaClientHash = clientHash
-        serve(archiveBytes)
+        let { hash } = jpfs.serve(archiveBytes)
+        state._sheaClientHash = hash
         fs.removeSync(tmpPath)
       }
     },
@@ -41,17 +39,14 @@ module.exports = function(clientPath) {
 }
 
 function serve(buf) {
-  let hash = createHash('sha256').update(buf).digest('hex')
-  let server = discoveryServer(defaults, function (socket) {
-    socket.write(buf) 
+  let hash = createHash('sha256')
+    .update(buf)
+    .digest('hex')
+  let server = discoveryServer(defaults, function(socket) {
+    socket.write(buf)
     socket.end()
     socket.on('error', e => {})
   })
 
-  server.listen(hash, function () {})
+  server.listen(hash, function() {})
 }
-
-
-
-
-
