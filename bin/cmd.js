@@ -33,16 +33,19 @@ let axios = require('axios')
 let getPort = require('get-port')
 let net = require('net')
 let express = require('express')
+let cookieParser = require('cookie-parser')
 let proxy = require('express-http-proxy')
 let { json } = require('body-parser')
 let { join } = require('path')
-let opn = require('opn')
 let fs = require('fs-extra')
 let jpfs = require('jpfs')
 let os = require('os')
 let mkdirp = require('mkdirp')
 let { createHash, randomBytes } = require('crypto')
 let tar = require('tar')
+let level = require('level')
+let ed = require('supercop.js')
+let { stringify } = require('deterministic-json')
 
 let GCI = argv._[0] || ''
 let gatewayMode = argv.g || false
@@ -50,6 +53,7 @@ let gatewayMode = argv.g || false
 let connect = require('lotion-connect')
 let clients = {}
 const SHEA_HOME = join(os.homedir(), '/.shea')
+let keyStore = level(join(SHEA_HOME, 'keys'))
 
 function parseGCIFromHeaders(headers) {
   let referer = headers.referer
@@ -68,9 +72,20 @@ async function main() {
   let expressApp = express()
 
   expressApp.use(json())
+  expressApp.use(cookieParser())
+
+  expressApp.use(function cookieManager(req, res, next) {
+    if (!req.cookies.userId) {
+      let userId = randomBytes(32).toString('base64')
+      res.cookie('userId', userId)
+      req.cookies.userId = userId
+    }
+    next()
+  })
+
   expressApp.use(function(req, res, next) {
     /**
-     * handle web+shea links
+     * handle web+lotion links
      */
     const lotionWebPrefix = '/web%2Blotion%3A%2F%2'
     let isLotionWeb = req.url.indexOf(lotionWebPrefix) === 0
@@ -103,7 +118,7 @@ async function main() {
       return next(e)
     }
   })
-  expressApp.post('/txs', async (req, res, next) => {
+  expressApp.post('/send', async (req, res, next) => {
     let GCI = parseGCIFromHeaders(req.headers)
     if (!GCI) {
       return res.sendStatus(400)
@@ -113,6 +128,71 @@ async function main() {
     } catch (e) {
       return next(e)
     }
+  })
+
+  /**
+   * for /keys and /sign endpoints:
+   * generate a new keypair for a chain id
+   * if we don't already have one.
+   */
+  async function ensureKey(req, res, next) {
+    let gci = req.params.gci
+    let userId = req.cookies.userId
+    let index = [userId, gci].join(':')
+    let seed
+    try {
+      seed = Buffer.from(await keyStore.get(index), 'base64')
+    } catch (e) {
+      seed = ed.createSeed()
+      await keyStore.put(index, seed.toString('base64'))
+    }
+
+    req.keypair = ed.createKeyPair(seed)
+    next()
+  }
+
+  function requireSameGCI(req, res, next) {
+    let { referer } = req.headers
+    let targetgci = req.params.gci
+
+    if ('/' + targetgci + '/' === referer.split(req.headers.origin)[1]) {
+      next()
+    } else {
+      res
+        .status(401)
+        .end(
+          'You may only sign transactions for the chain whose app you are using'
+        )
+    }
+  }
+
+  /**
+   * endpoint to get user's public key(s) for this chain.
+   *
+   * available from any origin.
+   */
+  expressApp.get('/keys/:gci', ensureKey, function(req, res) {
+    let response = {
+      public: [req.keypair.publicKey.toString('base64')]
+    }
+    res.json(response)
+  })
+
+  /**
+   * endpoint to sign a transaction with a user's key for this chain.
+   *
+   * can only be called from the same origin (same gci)
+   */
+  expressApp.post('/:gci/sign', requireSameGCI, ensureKey, function(req, res) {
+    let signature = ed
+      .sign(
+        Buffer.from(stringify(req.body)),
+        req.keypair.publicKey,
+        req.keypair.secretKey
+      )
+      .toString('base64')
+
+    res.json(signature)
   })
 
   expressApp.get('/:gci/state', async (req, res, next) => {
@@ -126,7 +206,7 @@ async function main() {
     }
   })
 
-  expressApp.post('/:gci/txs', async (req, res, next) => {
+  expressApp.post('/:gci/send', async (req, res, next) => {
     let GCI = req.params.gci
     try {
       res.json(await sendTxByGCI(GCI, req.body))
@@ -139,7 +219,6 @@ async function main() {
     let GCI = req.params.gci
     try {
       let clientHash = await queryByGCI(GCI, '_sheaClientHash')
-
       // check if we already have this client bundle
       let path = join(SHEA_HOME, 'clients', GCI)
       if (await fs.exists(path)) {
@@ -151,7 +230,6 @@ async function main() {
       fs.writeFileSync(tmpPath, clientArchive)
       // unpack client archive
       mkdirp.sync(path)
-
       await tar.extract({ cwd: path, strip: 1, file: tmpPath })
       await fs.remove(tmpPath)
 
@@ -164,9 +242,6 @@ async function main() {
   expressApp.use(express.static(join(SHEA_HOME, 'clients')))
 
   expressApp.listen(expressPort)
-  if (!gatewayMode) {
-    opn('http://localhost:' + expressPort + '/' + GCI)
-  }
 
   async function queryByGCI(GCI, path) {
     if (!clients[GCI]) {

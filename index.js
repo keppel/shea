@@ -4,6 +4,7 @@ let { join } = require('path')
 let os = require('os')
 let tar = require('tar')
 let jpfs = require('jpfs')
+let path = require('path')
 
 module.exports = function(clientPath) {
   return [
@@ -11,7 +12,10 @@ module.exports = function(clientPath) {
       type: 'initializer',
       middleware: function(state) {
         let tmpPath = join(os.tmpdir(), randomBytes(16).toString('hex'))
-        tar.create({ sync: true, file: tmpPath, portable: true }, [clientPath])
+        tar.create(
+          { sync: true, file: tmpPath, cwd: clientPath, portable: true },
+          ['.']
+        )
         let archiveBytes = fs.readFileSync(tmpPath)
         let { hash } = jpfs.serve(archiveBytes)
         state._sheaClientHash = hash
@@ -36,17 +40,4 @@ module.exports = function(clientPath) {
       }
     }
   ]
-}
-
-function serve(buf) {
-  let hash = createHash('sha256')
-    .update(buf)
-    .digest('hex')
-  let server = discoveryServer(defaults, function(socket) {
-    socket.write(buf)
-    socket.end()
-    socket.on('error', e => {})
-  })
-
-  server.listen(hash, function() {})
 }
