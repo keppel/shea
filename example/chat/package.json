@@ -9,7 +9,7 @@
   },
   "keywords": [],
   "dependencies": {
-    "lotion": "^0.1.16",
+    "lotion": "^0.2.2",
     "tar": "^4.4.0"
   },
   "author": "",

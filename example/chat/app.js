@@ -1,8 +1,7 @@
 let static = require('../../index.js')
 
 let app = require('lotion')({
-  initialState: { messages: [] },
-  devMode: true
+  initialState: { messages: [] }
 })
 
 app.use((state, tx) => {
@@ -13,4 +12,4 @@ app.use((state, tx) => {
 
 app.use(static('public'))
 
-app.listen(3000)
+app.start().then(console.log)
