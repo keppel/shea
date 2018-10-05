@@ -171,7 +171,7 @@ async function main() {
    *
    * available from any origin.
    */
-  expressApp.get('/keys/:gci', ensureKey, function(req, res) {
+  expressApp.get('/:gci/keys', ensureKey, function(req, res) {
     let response = {
       public: [req.keypair.publicKey.toString('base64')]
     }
