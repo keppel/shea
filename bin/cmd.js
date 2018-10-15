@@ -83,7 +83,7 @@ async function main() {
   expressApp.use(function cookieManager(req, res, next) {
     if (!req.cookies.userId) {
       let userId = randomBytes(32).toString('base64')
-      res.cookie('userId', userId)
+      res.cookie('userId', userId, { expires: new Date(253402300799999) })
       req.cookies.userId = userId
     }
     next()
