@@ -1,10 +1,9 @@
 let fs = require('fs-extra')
-let { createHash, randomBytes } = require('crypto')
+let { randomBytes } = require('crypto')
 let { join } = require('path')
 let os = require('os')
 let tar = require('tar')
 let jpfs = require('jpfs')
-let path = require('path')
 
 module.exports = function(clientPath) {
   return [
@@ -20,23 +19,6 @@ module.exports = function(clientPath) {
         let { hash } = jpfs.serve(archiveBytes)
         state._sheaClientHash = hash
         fs.removeSync(tmpPath)
-      }
-    },
-    {
-      type: 'post-listen',
-      middleware: async function(appInfo) {
-        console.log(
-          `\n\n
-<===================================================================>
-             
-         users can connect with:   
-                    
-         $ npm i -g shea
-         $ shea ${appInfo.GCI}
- 
-<===================================================================>
-`
-        )
       }
     }
   ]
