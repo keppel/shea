@@ -45,7 +45,7 @@ let { createHash, randomBytes } = require('crypto')
 let tar = require('tar')
 let level = require('level')
 let ed = require('supercop.js')
-let { stringify } = require('deterministic-json')
+let { stringify, parse } = require('deterministic-json')
 
 let GCI = argv._[0] || ''
 let gatewayMode = argv.g || false
@@ -72,6 +72,12 @@ async function main() {
   let expressApp = express()
 
   expressApp.use(json())
+  expressApp.use(function(req, res, next) {
+    if (req.body) {
+      req.body = parse(stringify(req.body))
+    }
+    next()
+  })
   expressApp.use(cookieParser())
 
   expressApp.use(function cookieManager(req, res, next) {
@@ -136,7 +142,7 @@ async function main() {
    * if we don't already have one.
    */
   async function ensureKey(req, res, next) {
-    let gci = req.params.gci
+    let gci = req.params.gci || parseGCIFromHeaders(req.headers)
     let userId = req.cookies.userId
     let index = [userId, gci].join(':')
     let seed
@@ -184,14 +190,20 @@ async function main() {
    * can only be called from the same origin (same gci)
    */
   expressApp.post('/:gci/sign', requireSameGCI, ensureKey, function(req, res) {
-    let signature = ed
+    let signature = getSignature(req)
+    res.json(signature)
+  })
+  function getSignature(req) {
+    return ed
       .sign(
-        Buffer.from(stringify(req.body)),
+        Buffer.isBuffer(req.body) ? req.body : Buffer.from(stringify(req.body)),
         req.keypair.publicKey,
         req.keypair.secretKey
       )
       .toString('base64')
-
+  }
+  expressApp.post('/sign', ensureKey, (req, res) => {
+    let signature = getSignature(req)
     res.json(signature)
   })
 
